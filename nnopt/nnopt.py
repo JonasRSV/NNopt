@@ -77,7 +77,10 @@ class Optimizer():
                     activation=tf.math.sigmoid,
                     use_bias=True)
                 model_out = tf.layers.dense(
-                    hidden, mem_model_out, activation=None, use_bias=True)
+                    hidden,
+                    mem_model_out,
+                    activation=tf.math.sigmoid,
+                    use_bias=True)
 
             with tf.variable_scope("memory", reuse=tf.AUTO_REUSE):
                 hidden = tf.layers.dense(
@@ -86,7 +89,10 @@ class Optimizer():
                     activation=tf.math.sigmoid,
                     use_bias=True)
                 memory_out = tf.layers.dense(
-                    hidden, mem_model_out, activation=None, use_bias=True)
+                    hidden,
+                    mem_model_out,
+                    activation=tf.math.sigmoid,
+                    use_bias=True)
 
             memory_variables = tf.get_collection(
                 tf.GraphKeys.TRAINABLE_VARIABLES,
@@ -140,28 +146,40 @@ class Optimizer():
         for p in range(len(self.N_samples)):
 
             # newton step is verrry unstable here it seems
-            # gradients, inv_hess = self.S.run(
-            # (self.IN_grads, self.IN_hessian), feed_dict={
-            # self.IN: [self.N_samples[p]]
-            # })
+            gradients, inv_hess = self.S.run(
+            (self.IN_grads, self.IN_hessian), feed_dict={
+            self.IN: [self.N_samples[p]]
+            })
 
-            # suggestion = self.N_samples[p] - inv_hess @ gradients
+            suggestion = self.N_samples[p] - inv_hess @ gradients
 
-            suggestion = self.N_samples[p]
+            # suggestion = self.N_samples[p]
 
             # A few gradient steps is more stable
-            for _ in range(10):
-                gradients = self.S.run(
-                    (self.IN_grads), feed_dict={
-                        self.IN: [suggestion]
-                    })
+            # for _ in range(10):
+            # gradients = self.S.run(
+                # (self.IN_grads), feed_dict={
+                    # self.IN: [suggestion]
+                # })
 
-                suggestion = suggestion + 0.1 * gradients
+            # suggestion = suggestion + gradients
 
             pred, entropy = self.S.run(
                 (self.OUT, self.entropy), feed_dict={
                     self.IN: [suggestion]
                 })
+
+            # print("Dim Orig", self.N_samples[p])
+            # print("Original", self.M_samples[p])
+            # print("Pred original",
+            # self.S.run(
+            # self.OUT, feed_dict={
+            # self.IN: [self.N_samples[p]]
+            # }))
+            # print("Suggestion", suggestion)
+            # print("Suggestion", pred)
+            # print("Entropy", entropy)
+            # print()
 
             suggestions.append((suggestion, pred * abs(entropy), pred))
 
