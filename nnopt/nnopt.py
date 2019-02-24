@@ -29,7 +29,7 @@ class Optimizer():
         self.N_samples = []
         self.M_samples = []
 
-        with tf.variable_scope(Optimizer.SCOPE):
+        with tf.variable_scope(Optimizer.SCOPE, reuse=tf.AUTO_REUSE):
             self.N_gen = None
             if Rn:
                 self.N_gen = tf.concat(
@@ -49,7 +49,7 @@ class Optimizer():
             self.IN = tf.placeholder(tf.float32, shape=[None, N])
             self.OBS = tf.placeholder(tf.float32, shape=[None])
 
-            with tf.variable_scope("surrogate"):
+            with tf.variable_scope("surrogate", reuse=tf.AUTO_REUSE):
                 hidden = tf.layers.dense(
                     self.IN,
                     surrogate_hidden_layer,
@@ -70,7 +70,7 @@ class Optimizer():
                 learning_rate=0.001).apply_gradients(
                     zip(surrogate_grads, surrogate_variables))
 
-            with tf.variable_scope("model"):
+            with tf.variable_scope("model", reuse=tf.AUTO_REUSE):
                 hidden = tf.layers.dense(
                     self.IN,
                     memory_hidden_layer,
@@ -79,7 +79,7 @@ class Optimizer():
                 model_out = tf.layers.dense(
                     hidden, mem_model_out, activation=None, use_bias=True)
 
-            with tf.variable_scope("memory"):
+            with tf.variable_scope("memory", reuse=tf.AUTO_REUSE):
                 hidden = tf.layers.dense(
                     self.IN,
                     memory_hidden_layer,
