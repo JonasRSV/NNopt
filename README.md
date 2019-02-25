@@ -2,7 +2,7 @@ Surrogate Optimization Method using NN as Surrogate
 ---
 
 * Tries to model underlying function using a NN
-* Tries to model uncertanty of the surrogate function by using a memory NN to predict the output of the surrogate
+* Tries to model uncertanty of the surrogate function by using a memory NN to predict the output of a random network (This works not as good as id want it to, it is a WIP)
 
 #### Example
 ```python
@@ -30,4 +30,10 @@ see
 #### Demo
 (Gif is speed up 4x)
 ![demo](images/demo.gif)
+
+
+#### Demo (Optimize linear transformation to land space crafts! :))
+(Gif speed up 4x)
+![demo2](images/moondemo.gif)
+
 
