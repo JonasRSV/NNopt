@@ -17,6 +17,11 @@ def black_box_function(x, y):
     """
     return -x ** 2 - (y - 1) ** 2 + 1
 
+Nopt = Optimizer(black_box_function, N=2, 
+								surrogate_hidden_layer=200, 
+								memory_hidden_layer=200,
+								model_hidden_layer=200,
+								Rn=[(-10, 10), (-10, 10)])
 best, target = Nopt.run(random=10, optimization=40, fitting=100, verbose=True)
 print("Best", best, "target", target)
 
