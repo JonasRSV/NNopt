@@ -2,10 +2,7 @@ Surrogate Optimization Method using NN as Surrogate
 ---
 
 * Tries to model underlying function using a NN
-* Tries to model uncertanty of the surrogate function by using a memory NN to predict the output of a random neural network
-
-
-using these 3 neural networks the underlying function is searched using gradient steps combined with a uncertanty measure to decide where to evaluate it next.
+* Tries to model uncertanty of the surrogate function by using a memory NN to predict the output of the surrogate
 
 #### Example
 ```python
@@ -26,8 +23,10 @@ print("Best", best, "target", target)
 ```
 
 see 
-- nnopt/example/bayes_vs_nnopt.ipynb
+- [bayes opt comparison](https://github.com/JonasRSV/NNopt/blob/master/nnopt/example/bayes_vs_nnopt.ipynb)
+- [interactive sort of..](https://github.com/JonasRSV/NNopt/blob/master/nnopt/example/NNoptInteractive.ipynb)
 
 
-#### Problem
-Could not get it working using hessians.. newton rahpson just exploded and were unstable.. any improvements there would be appreciated! :) 
+#### Demo
+![demo](images/demo.gif)
+

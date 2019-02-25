@@ -12,14 +12,13 @@ class Optimizer():
             F: "F: R^N -> R^1",
             N: int,
             surrogate_hidden_layer: int = 60,
-            model_hidden_layer: int = 60,
             memory_hidden_layer: int = 60,
-            mem_model_out: int = 5,
             Rn:
             "[Range_0, Range_1...Range_n] N = Range_n = (Min_n, Max_n)" = None,
             seed=None):
 
         self.N = N
+        self.Rn = Rn
 
         if Rn and len(Rn) != N:
             raise Exception("Ranges must match domain")
@@ -70,39 +69,22 @@ class Optimizer():
                 learning_rate=0.001).apply_gradients(
                     zip(surrogate_grads, surrogate_variables))
 
-            with tf.variable_scope("model", reuse=tf.AUTO_REUSE):
-                hmod = tf.layers.dense(
-                    self.IN,
-                    model_hidden_layer,
-                    activation=tf.math.sigmoid,
-                    kernel_initializer=tf.initializers.variance_scaling(
-                        scale=100, distribution="uniform"),
-                    bias_initializer=tf.initializers.glorot_normal(),
-                    use_bias=True)
-                model_out = tf.layers.dense(
-                    hmod,
-                    mem_model_out,
-                    activation=tf.math.sigmoid,
-                    use_bias=True)
-
             with tf.variable_scope("memory", reuse=tf.AUTO_REUSE):
-                hmem = tf.layers.dense(
+                hidden = tf.layers.dense(
                     self.IN,
                     memory_hidden_layer,
                     activation=tf.math.sigmoid,
                     use_bias=True)
-                memory_out = tf.layers.dense(
-                    hmem,
-                    mem_model_out,
-                    activation=tf.math.sigmoid,
-                    use_bias=True)
+                memory_out = tf.squeeze(
+                    tf.layers.dense(hidden, 1, activation=None, use_bias=True))
 
             memory_variables = tf.get_collection(
                 tf.GraphKeys.TRAINABLE_VARIABLES,
                 scope="{}/memory".format(Optimizer.SCOPE))
 
-            self.entropy = tf.losses.mean_squared_error(model_out, memory_out)
-            error = tf.losses.mean_squared_error(model_out, memory_out)
+            self.mem_out = memory_out
+            self.entropy = tf.losses.mean_squared_error(self.OUT, memory_out)
+            error = tf.losses.mean_squared_error(self.OBS, memory_out)
             memory_grads = tf.gradients(error, memory_variables)
             self.memory_opt = tf.train.AdamOptimizer(
                 learning_rate=0.001).apply_gradients(
@@ -132,7 +114,12 @@ class Optimizer():
     def predict(self, N) -> (np.ndarray, np.ndarray):
         return self.S.run((self.OUT, self.entropy), feed_dict={self.IN: N})
 
-    def fit(self, epochs=10) -> float:
+    def mem_pred(self, N) -> (np.ndarray, np.ndarray):
+        return self.S.run((self.mem_out), feed_dict={self.IN: N})
+
+    def fit(self, epochs=10, forgetting=True) -> float:
+        if forgetting:
+            self.S.run(self.local_init)
         for _ in range(epochs):
             self.S.run(
                 (self.surrogate_opt, self.memory_opt),
@@ -141,12 +128,15 @@ class Optimizer():
                     self.OBS: self.M_samples
                 })
 
-    def optimize(self):
+    def optimize(self, exploration=0.1):
         """ Work on heuristics here. """
 
+        POINTS = len(self.N_samples)
         suggestions = []
+        score_suggestions = []
+        entr_suggestions = []
         """ All of these belong to potential regions. """
-        for p in range(len(self.N_samples)):
+        for p in range(POINTS):
 
             # newton step is verrry unstable here it seems
             gradients, inv_hess = self.S.run(
@@ -156,6 +146,12 @@ class Optimizer():
                 })
 
             suggestion = (self.N_samples[p] - inv_hess @ gradients).reshape(-1)
+            if self.Rn:
+                sugg = []
+                for d, (mn, mx) in zip(suggestion, self.Rn):
+                    sugg.append(np.clip(d, mn, mx))
+
+                suggestion = np.array(sugg)
 
             # suggestion = self.N_samples[p]
 
@@ -170,12 +166,29 @@ class Optimizer():
 
             pred, entropy = self.predict([suggestion])
 
-            suggestions.append((suggestion, pred * abs(entropy), pred))
+            suggestions.append(suggestion)
+            score_suggestions.append((p, pred))
+            entr_suggestions.append((p, entropy))
 
-        suggestions.sort(key=lambda x: x[1], reverse=True)
-        return suggestions[0]
+        score_suggestions.sort(key=lambda x: x[1], reverse=True)
+        entr_suggestions.sort(key=lambda x: x[1], reverse=True)
 
-    def run(self, random=100, optimization=100, fitting=100, verbose=True):
+        ranking = [0] * POINTS
+        for r, (p, _) in enumerate(score_suggestions):
+            ranking[p] += (POINTS - r)
+
+        for r, (p, _) in enumerate(entr_suggestions):
+            ranking[p] += (POINTS - r) * exploration
+
+        return suggestions[np.argmax(ranking)]
+
+    def run(self,
+            random=100,
+            optimization=10,
+            fitting=1000,
+            exploration=1.0,
+            forgetting=False,
+            verbose=True):
         for i in range(random):
             self.sample(verbose=verbose)
 
@@ -186,9 +199,9 @@ class Optimizer():
         self.fit(fitting)
 
         for i in range(optimization):
-            sugg, _, _ = self.optimize()
+            sugg = self.optimize(exploration=exploration)
             self.sample(sugg, verbose=verbose)
-            self.fit(fitting)
+            self.fit(fitting, forgetting=forgetting)
 
         return self.N_samples[np.argmax(self.M_samples)], max(self.M_samples)
 
