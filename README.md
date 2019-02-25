@@ -29,7 +29,7 @@ see
 
 #### Demo
 (Gif is speed up 4x)
-![demo](images/demo.gif)
+![demo](images/traindemo.gif)
 
 
 #### Demo (Optimize linear transformation to land space crafts! :))
