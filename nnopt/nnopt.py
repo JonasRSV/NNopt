@@ -106,7 +106,7 @@ class Optimizer():
 
         M = self.F(*N)
         if verbose:
-            print("sample", N, "target", M)
+            print("target", M)
 
         self.N_samples.append(N)
         self.M_samples.append(M)
@@ -145,11 +145,16 @@ class Optimizer():
                     self.IN: [self.N_samples[p]]
                 })
 
-            suggestion = (self.N_samples[p] - inv_hess @ gradients).reshape(-1)
+            suggestion = (self.N_samples[p]).reshape(-1)
+            step = (inv_hess @ gradients).reshape(-1)
+
+            # print("Suggestion", suggestion)
+            # print("S", step)
+
             if self.Rn:
                 sugg = []
-                for d, (mn, mx) in zip(suggestion, self.Rn):
-                    sugg.append(np.clip(d, mn, mx))
+                for s, (mn, mx) in zip(suggestion - step, self.Rn):
+                    sugg.append(np.clip(s, mn, mx))
 
                 suggestion = np.array(sugg)
 
@@ -162,9 +167,15 @@ class Optimizer():
             # self.IN: [suggestion]
             # })
 
+            # # print("Suggestion clipped", suggestion)
             # suggestion = suggestion + gradients
 
             pred, entropy = self.predict([suggestion])
+            # print("Pred", pred)
+            # print("Ent", entropy)
+
+            # print()
+            # print()
 
             suggestions.append(suggestion)
             score_suggestions.append((p, pred))
