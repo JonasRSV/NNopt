@@ -71,25 +71,28 @@ class Optimizer():
                     zip(surrogate_grads, surrogate_variables))
 
             with tf.variable_scope("model", reuse=tf.AUTO_REUSE):
-                hidden = tf.layers.dense(
+                hmod = tf.layers.dense(
                     self.IN,
-                    memory_hidden_layer,
+                    model_hidden_layer,
                     activation=tf.math.sigmoid,
+                    kernel_initializer=tf.initializers.variance_scaling(
+                        scale=100, distribution="uniform"),
+                    bias_initializer=tf.initializers.glorot_normal(),
                     use_bias=True)
                 model_out = tf.layers.dense(
-                    hidden,
+                    hmod,
                     mem_model_out,
                     activation=tf.math.sigmoid,
                     use_bias=True)
 
             with tf.variable_scope("memory", reuse=tf.AUTO_REUSE):
-                hidden = tf.layers.dense(
+                hmem = tf.layers.dense(
                     self.IN,
                     memory_hidden_layer,
                     activation=tf.math.sigmoid,
                     use_bias=True)
                 memory_out = tf.layers.dense(
-                    hidden,
+                    hmem,
                     mem_model_out,
                     activation=tf.math.sigmoid,
                     use_bias=True)
@@ -99,20 +102,21 @@ class Optimizer():
                 scope="{}/memory".format(Optimizer.SCOPE))
 
             self.entropy = tf.losses.mean_squared_error(model_out, memory_out)
-            memory_grads = tf.gradients(self.entropy, memory_variables)
+            error = tf.losses.mean_squared_error(model_out, memory_out)
+            memory_grads = tf.gradients(error, memory_variables)
             self.memory_opt = tf.train.AdamOptimizer(
                 learning_rate=0.001).apply_gradients(
                     zip(memory_grads, memory_variables))
 
-            self.IN_grads = tf.squeeze(tf.gradients(self.OUT, self.IN))
+            self.IN_grads = tf.squeeze(tf.gradients(self.OUT, self.IN), [0, 1])
             self.IN_hessian = tf.linalg.inv(
-                tf.squeeze(tf.hessians(self.OUT, self.IN)))
+                tf.squeeze(tf.hessians(self.OUT, self.IN), axis=[0, 1, 3]))
 
-        local_init = tf.initializers.variables(
+        self.local_init = tf.initializers.variables(
             tf.get_collection(
                 tf.GraphKeys.GLOBAL_VARIABLES, scope=Optimizer.SCOPE))
         self.S = tf.Session()
-        self.S.run(local_init)
+        self.S.run(self.local_init)
 
     def sample(self, N=[], verbose=True) -> None:
         if len(N) == 0:
@@ -122,12 +126,11 @@ class Optimizer():
         if verbose:
             print("sample", N, "target", M)
 
-        if self.N == 1:
-            self.N_samples.append(np.array([N]))
-        else:
-            self.N_samples.append(N)
-
+        self.N_samples.append(N)
         self.M_samples.append(M)
+
+    def predict(self, N) -> (np.ndarray, np.ndarray):
+        return self.S.run((self.OUT, self.entropy), feed_dict={self.IN: N})
 
     def fit(self, epochs=10) -> float:
         for _ in range(epochs):
@@ -147,39 +150,25 @@ class Optimizer():
 
             # newton step is verrry unstable here it seems
             gradients, inv_hess = self.S.run(
-            (self.IN_grads, self.IN_hessian), feed_dict={
-            self.IN: [self.N_samples[p]]
-            })
+                (self.IN_grads, self.IN_hessian),
+                feed_dict={
+                    self.IN: [self.N_samples[p]]
+                })
 
-            suggestion = self.N_samples[p] - inv_hess @ gradients
+            suggestion = (self.N_samples[p] - inv_hess @ gradients).reshape(-1)
 
             # suggestion = self.N_samples[p]
 
             # A few gradient steps is more stable
             # for _ in range(10):
             # gradients = self.S.run(
-                # (self.IN_grads), feed_dict={
-                    # self.IN: [suggestion]
-                # })
+            # (self.IN_grads), feed_dict={
+            # self.IN: [suggestion]
+            # })
 
             # suggestion = suggestion + gradients
 
-            pred, entropy = self.S.run(
-                (self.OUT, self.entropy), feed_dict={
-                    self.IN: [suggestion]
-                })
-
-            # print("Dim Orig", self.N_samples[p])
-            # print("Original", self.M_samples[p])
-            # print("Pred original",
-            # self.S.run(
-            # self.OUT, feed_dict={
-            # self.IN: [self.N_samples[p]]
-            # }))
-            # print("Suggestion", suggestion)
-            # print("Suggestion", pred)
-            # print("Entropy", entropy)
-            # print()
+            pred, entropy = self.predict([suggestion])
 
             suggestions.append((suggestion, pred * abs(entropy), pred))
 
@@ -203,8 +192,10 @@ class Optimizer():
 
         return self.N_samples[np.argmax(self.M_samples)], max(self.M_samples)
 
-    def pred_test(self, samples, obs):
-        return samples, obs, self.S.run(
-            (self.OUT, self.entropy), feed_dict={
-                self.IN: samples
-            })
+    def forget(self):
+        self.M_samples = []
+        self.N_samples = []
+        self.S.run(self.local_init)
+
+    def close(self):
+        self.S.close()
