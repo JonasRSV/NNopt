@@ -2,7 +2,7 @@ Surrogate Optimization Method using NN as Surrogate
 ---
 
 * Tries to model underlying function using a NN
-* Tries to model uncertanty of the surrogate function by using a memory NN to predict the output of a random network (This works not as good as id want it to, it is a WIP)
+* Tries to model uncertainty by training a kernel and using heuristics  
 
 #### Example
 ```python
@@ -19,8 +19,8 @@ def black_box_function(x, y):
 
 Nopt = Optimizer(black_box_function, N=2, 
 	surrogate_hidden_layer=200, 
-	memory_hidden_layer=200,
-	model_hidden_layer=200,
+	kernel_seperate=200,
+	kernel_common=200,
 	Rn=[(-10, 10), (-10, 10)])
 best, target = Nopt.run(random=10, optimization=40, fitting=100, verbose=True)
 print("Best", best, "target", target)
@@ -34,11 +34,11 @@ see
 
 #### Demo
 (Gif is speed up 4x)
-![demo](images/traindemo.gif)
+![demo](images/plotDemo.gif)
 
 
 #### Demo (Optimize linear transformation to land space crafts! :))
 (Gif speed up 4x)
-![demo2](images/moondemo.gif)
+![demo2](images/landingDemo.gif)
 
 

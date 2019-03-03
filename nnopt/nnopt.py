@@ -84,6 +84,11 @@ class Optimizer():
                     surrogate_hidden_layer,
                     activation=tf.math.sigmoid,
                     use_bias=True)
+                hidden = tf.layers.dense(
+                    hidden,
+                    surrogate_hidden_layer,
+                    activation=None,
+                    use_bias=True)
                 self.OUT = tf.squeeze(
                     tf.layers.dense(hidden, 1, activation=None, use_bias=True))
 
@@ -102,7 +107,8 @@ class Optimizer():
 
             self.IN_grads = tf.squeeze(tf.gradients(self.OUT, self.IN), [0, 1])
             self.IN_hessian = tf.linalg.inv(
-                tf.squeeze(tf.hessians(self.OUT, self.IN), axis=[0, 1, 3]) + np.eye(self.N) * 1e-7)
+                tf.squeeze(tf.hessians(self.OUT, self.IN), axis=[0, 1, 3]) +
+                np.eye(self.N) * 1e-7)
 
             self.K1 = tf.placeholder(tf.float32, shape=[None, N])
             self.K2 = tf.placeholder(tf.float32, shape=[None, N])
@@ -110,37 +116,19 @@ class Optimizer():
             self.K_labels = tf.placeholder(tf.float32, shape=[None])
 
             with tf.variable_scope("kernel", reuse=tf.AUTO_REUSE):
-                hk1 = tf.layers.dense(
-                    self.K1,
-                    kernel_seperate,
-                    activation=tf.math.sigmoid,
-                    use_bias=True)
-
-                hk2 = tf.layers.dense(
-                    self.K2,
-                    kernel_seperate,
-                    activation=tf.math.sigmoid,
-                    use_bias=True)
-
-                hk1 = tf.layers.dense(
-                    hk1,
-                    self.N,
-                    activation=tf.math.sigmoid,
-                    use_bias=True)
-
-                hk2 = tf.layers.dense(
-                    hk2,
-                    self.N,
-                    activation=tf.math.sigmoid,
-                    use_bias=True)
-
-                hidden = tf.concat([hk1, hk2], 1)
+                hidden = tf.concat([self.K1, self.K2], 1)
                 hidden = tf.layers.dense(
                     hidden,
                     kernel_common,
                     activation=tf.math.sigmoid,
                     use_bias=True)
-
+                hidden = tf.layers.dense(
+                    hidden,
+                    kernel_common,
+                    activation=tf.math.sigmoid,
+                    use_bias=True)
+                hidden = tf.layers.dense(
+                    hidden, kernel_common, activation=None, use_bias=True)
                 self.K = tf.squeeze(
                     tf.layers.dense(hidden, 1, activation=None, use_bias=True))
 
@@ -168,7 +156,7 @@ class Optimizer():
 
         M = self.F(*N)
         if verbose:
-            print("domain", N, "target", M)
+            print("target", M)
 
         self.N_samples.append(N)
         self.M_samples.append(M)
@@ -206,7 +194,7 @@ class Optimizer():
             if err < self.convergence_limit:
                 break
 
-        for i in range(min(epochs // 5, 500)):
+        for i in range(min(max(epochs // 5, 400), 500)):
             _, err = self.S.run(
                 (self.kernel_opt, self.kernel_error),
                 feed_dict={
@@ -234,19 +222,21 @@ class Optimizer():
 
             suggestion = self.N_samples[p].reshape(-1) - (
                 inv_hess @ gradients).reshape(-1)
+
             if self.minis and self.maxis:
                 suggestion = np.clip(suggestion, self.minis, self.maxis)
 
             pred = self.predict([suggestion])
 
-            ent = self.kernel([suggestion], [self.N_samples[p]])
-            # for k2 in self.N_samples:
-                # ent += self.kernel([suggestion], [k2])
-
-            # ent /= self.samples
+            ent = 1e6
+            for k2 in self.N_samples:
+                ent = min(self.kernel([suggestion], [k2]), ent)
 
             # print("Start", self.N_samples[p], "Score", self.M_samples[p])
             # print("Recommendation", suggestion, "Pred", pred, "Ent", ent)
+            # print()
+            # print("Score", self.M_samples[p])
+            # print("Pred", pred, "Ent", ent)
             # print()
 
             suggs.append(suggestion)
@@ -261,6 +251,7 @@ class Optimizer():
         mean_ent = np.mean(ents)
         stdev_ent = np.std(ents)
 
+        # print("MEANENT VARENT", np.mean(ents), np.var(ents))
         preds = (preds - mean_pred) / (stdev_pred + 1e-6)
         ents = (ents - mean_ent) / (stdev_ent + 1e-6)
 
@@ -303,6 +294,9 @@ class Optimizer():
     def forget(self):
         self.M_samples = []
         self.N_samples = []
+        self.k1_features = []
+        self.k2_features = []
+        self.kernel_labels = []
         self.samples = 0
         self.S.run(self.local_init)
 
