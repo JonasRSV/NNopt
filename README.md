@@ -30,6 +30,7 @@ print("Best", best, "target", target)
 see 
 - [bayes opt comparison](https://github.com/JonasRSV/NNopt/blob/master/nnopt/example/bayes_vs_nnopt.ipynb)
 - [interactive sort of..](https://github.com/JonasRSV/NNopt/blob/master/nnopt/example/NNoptInteractive.ipynb)
+- [Ai Gyms](https://github.com/JonasRSV/NNopt/blob/master/nnopt/example/openAISimpleChallenge.ipynb)
 
 
 #### Demo
